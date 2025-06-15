@@ -2,6 +2,13 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from datetime import datetime
+import joblib
+
+# Load mô hình dự đoán rating
+model = joblib.load("streamlit_rating_model.pkl")
+
+# Map label ML trả về thành số rating (tùy bạn chỉnh theo logic riêng)
+label2rating = {"positive": 5, "neutral": 3, "negative": 1}
 
 # Thiết lập giao diện
 st.set_page_config(page_title="📊 Game Review Explorer", page_icon="🎮")
@@ -91,20 +98,28 @@ with st.form("review_form"):
     submitted = st.form_submit_button("Lưu đánh giá")
 
     if submitted:
-        new_entry = {
-            "date_posted": datetime.now().strftime("%Y-%m-%d"),
-            "funny": 0,
-            "helpful": 0,
-            "hour_played": new_playtime,
-            "recommendation": "Recommended" if new_rating >= 3 else "Not Recommended",
-            "review": new_review,
-            "title": new_title,
-            "rating": new_rating,
-            "playtime": new_playtime,
-            "review_length": len(new_review),
-            "word_count": len(new_review.split()),
-            "predicted_rating": new_rating
-        }
-        new_df = pd.DataFrame([new_entry])
-        new_df.to_csv(CSV_PATH, mode='a', header=False, index=False)
-        st.success("Đánh giá mới đã được lưu thành công! Hãy tải lại trang để xem cập nhật.")
+    if new_review.strip() != "":
+        pred_label = model.predict([new_review])[0]
+        pred_rating = label2rating.get(pred_label, 3)  # nếu lạ thì mặc định 3
+    else:
+        pred_label = "neutral"
+        pred_rating = 3
+
+    new_entry = {
+        "date_posted": datetime.now().strftime("%Y-%m-%d"),
+        "funny": 0,
+        "helpful": 0,
+        "hour_played": new_playtime,
+        "recommendation": "Recommended" if pred_rating >= 3 else "Not Recommended",
+        "review": new_review,
+        "title": new_title,
+        "rating": new_rating,  # rating người dùng nhập, nếu vẫn muốn lưu
+        "playtime": new_playtime,
+        "review_length": len(new_review),
+        "word_count": len(new_review.split()),
+        "predicted_rating": pred_rating
+    }
+    new_df = pd.DataFrame([new_entry])
+    new_df.to_csv(CSV_PATH, mode='a', header=False, index=False)
+    st.success(f"Đánh giá mới đã được lưu thành công! Cảm xúc dự đoán: **{pred_label.upper()}** (rating: {pred_rating})")
+
